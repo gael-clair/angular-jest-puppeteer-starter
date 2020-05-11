@@ -1,0 +1,101 @@
+name: 'angular-jest-puppeteer-material-tailwindcss-starter'
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+  pull_request:
+    branches:
+      - master
+      - develop
+
+env:
+  NODE_VERSION: '12.x'
+
+jobs:
+  checks:
+    name: Checks (build, lint, test)
+    runs-on: ubuntu-latest
+    env:
+      COVERAGE_FOLDER: coverage
+      REPORTS_FOLDER: reports
+      BUILD_FOLDER: dist
+      CODECOV_CONFIG: ./codecov.yml
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+
+      - name: Check cache of yarn dependencies
+        uses: actions/cache@v1
+        id: yarn-cache
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build
+        run: npm run build:prod
+
+      - name: Create reports folder
+        run: mkdir $REPORTS_FOLDER
+
+      - name: Lint code
+        run: npm run lint:ci
+
+      - name: Lint style
+        run: npm run lint:style:ci
+
+      - name: Run unit tests with coverage
+        run: npm run test:ci
+
+      - name: Upload unit tests coverage report to Codecov
+        uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ${{ env.COVERAGE_FOLDER }}/ut/lcov.info
+          flags: unit
+          yml: ${{ env.CODECOV_CONFIG }}
+          fail_ci_if_error: true
+
+      - name: Run End-to-End tests with coverage
+        run: npm run e2e:ci
+
+      - name: Upload End-to-End tests coverage report to Codecov
+        uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ${{ env.COVERAGE_FOLDER }}/e2e/lcov.info
+          flags: e2e
+          yml: ${{ env.CODECOV_CONFIG }}
+          fail_ci_if_error: true
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v1
+        with:
+          name: coverage
+          path: ${{ env.COVERAGE_FOLDER }}
+
+      - name: Upload tests results reports
+        uses: actions/upload-artifact@v1
+        with:
+          name: tests-reports
+          path: ${{ env.REPORTS_FOLDER }}
+
+      - name: Upload build result
+        uses: actions/upload-artifact@v1
+        with:
+          name: dist
+          path: ${{ env.BUILD_FOLDER }}
